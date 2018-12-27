@@ -193,14 +193,14 @@ then
    if [[ $logRotateCronTaskNum = "" ]]
    then
        #没有则追加
-       echo "0 0 * * * root /opt/app/mongodb/shell/autoLogRotate.sh /opt/app/mongodb/shell > /dev/null 2>&1 &" >> $cronfile
+       echo "0 0 * * * root $ongodb_home/shell/autoLogRotate.sh $mongodb_home/shell > /dev/null 2>&1 &" >> $cronfile
    fi
 
    checkLiveCronTaskNum=`sed -n -e "/\*\/10 \* \* \* \* root $shellPath\/autoCheckLive.sh $shellPath/=" $cronfile`
    if [[ $checkLiveCronTaskNum = "" ]]
    then
        #没有则追加
-       echo "*/10 * * * * root /opt/app/mongodb/shell/autoCheckLive.sh /opt/app/mongodb/shell > /dev/null 2>&1 &" >> $cronfile
+       echo "*/10 * * * * root $mongodb_home/shell/autoCheckLive.sh $mongodb_home/shell > /dev/null 2>&1 &" >> $cronfile
    fi   
 fi
 
