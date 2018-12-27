@@ -44,6 +44,6 @@ port=`awk -F= -v k=mongos_port '{ if ( $1 == k ) print $2; }' $templatePath`
 initDBPath=$mongodb_home/shell
 #解压initConfig.zip包 -o:不提示的情况下覆盖文件，-d /opt:指明将文件解压缩到/opt目录
 unzip -o -d $initDBPath/initConfig $initDBPath/initConfig.zip
-$MONGODB_HOME/bin/mongorestore --host $mongosInitIp:$port --authenticationDatabase admin -d $testDB1 $initDBPath/initConfig/testDB1
-$MONGODB_HOME/bin/mongorestore --host $mongosInitIp:$port --authenticationDatabase admin -d $testDB2 $initDBPath/initConfig/testDB2
-$MONGODB_HOME/bin/mongorestore --host $mongosInitIp:$port --authenticationDatabase admin -d $testDB3 $initDBPath/initConfig/testDB3
+$mongodb_home/bin/mongorestore --host $mongosInitIp:$port --authenticationDatabase admin -d $testDB1 $initDBPath/initConfig/testDB1
+$mongodb_home/bin/mongorestore --host $mongosInitIp:$port --authenticationDatabase admin -d $testDB2 $initDBPath/initConfig/testDB2
+$mongodb_home/bin/mongorestore --host $mongosInitIp:$port --authenticationDatabase admin -d $testDB3 $initDBPath/initConfig/testDB3
