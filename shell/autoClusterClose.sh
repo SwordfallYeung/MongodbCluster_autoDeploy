@@ -2,11 +2,13 @@
 
 configPath=config.properties
 mongodb_home=`awk -F= -v k=mongodbHome '{ if ( $1 == k ) print $2; }' $configPath`
-clusterPath=`awk -F= -v k=clusterPath '{ if ( $1 == k ) print $2; }' $configPath`
+clusterDataPath=`awk -F= -v k=clusterDataPath '{ if ( $1 == k ) print $2; }' $configPath`
 template=`awk -F= -v k=template '{ if ( $1 == k ) print $2; }' $configPath`
 templatePath=template/$template.conf
 user=`awk -F= -v k=user '{ if ( $1 == k ) print $2; }' $configPath`
-localIp=`/sbin/ifconfig -a|grep inet|grep -v 127.0.0.1|grep -v inet6 | awk '{print $2}' | tr -d "addr:"`
+hostname=`hostname`
+localIp=`cat /etc/hosts | grep $hostname | awk -F " " '{print $1}'`
+#localIp=`/sbin/ifconfig -a|grep inet|grep -v 127.0.0.1|grep -v inet6 | awk '{print $2}' | tr -d "addr:"`
 
 ips=`awk -F= -v k=ips '{ if ( $1 == k ) print $2; }' $configPath`
 eval $(echo $ips | awk '{split($0, arr, ","); for(i in arr) print "ipArray["i"]="arr[i]}')
@@ -26,7 +28,7 @@ do
    else
        echo "*****close ${ipArray[i]} 定时任务:日志切割和mongo进程存活监控*****"
        ssh $user@${ipArray[i]} "cd $mongodb_home/shell && $mongodb_home/shell/autoConfig.sh removeCronTask"
-    fi
+   fi
 done
 
 if [[ $1 = "kill" ]]
@@ -37,10 +39,10 @@ then
     then
        #kill本地的mongod、mongos
        echo "*****close ${ipArray[i]} mongodb*****"
-       ps -ef | grep $clusterPath/conf | grep -v grep | cut -c 9-15 | xargs kill -2
+       ps -ef | grep $clusterDataPath/conf | grep -v grep | cut -c 9-15 | xargs kill -2
     else
        echo "*****close ${ipArray[i]} mongodb*****"
-       ssh $user@${ipArray[i]} "ps -ef | grep $clusterPath/conf | grep -v grep | cut -c 9-15 | xargs kill -2"
+       ssh $user@${ipArray[i]} "ps -ef | grep $clusterDataPath/conf | grep -v grep | cut -c 9-15 | xargs kill -2"
     fi
   done
 fi
@@ -59,10 +61,10 @@ then
     then
        #1.创建mongodbCluster并修改系统配置
        echo "****************close $mongosIp mongos****************"
-       ps -ef | grep $clusterPath/conf/mongos.conf | grep -v grep | cut -c 9-15 | xargs kill -2
+       ps -ef | grep $clusterDataPath/conf/mongos.conf | grep -v grep | cut -c 9-15 | xargs kill -2
     else
        echo "****************close $mongosIp mongos****************"
-       ssh $user@$mongosIp "ps -ef | grep $clusterPath/conf/mongos.conf | grep -v grep | cut -c 9-15 | xargs kill -2"
+       ssh $user@$mongosIp "ps -ef | grep $clusterDataPath/conf/mongos.conf | grep -v grep | cut -c 9-15 | xargs kill -2"
     fi
   done
   
@@ -79,10 +81,10 @@ then
     if [[ $localIp = $configIp ]]
     then
        echo "****************close $configIp config****************"
-       $mongodb_home/bin/mongod -f $clusterPath/conf/config.conf --shutdown
+       $mongodb_home/bin/mongod -f $clusterDataPath/conf/config.conf --shutdown
     else
        echo "****************close $configIp config****************"
-       ssh $user@$configIp "$mongodb_home/bin/mongod -f $clusterPath/conf/config.conf --shutdown"
+       ssh $user@$configIp "$mongodb_home/bin/mongod -f $clusterDataPath/conf/config.conf --shutdown"
     fi
   done
 
@@ -103,10 +105,10 @@ then
               if [[ $localIp = $shardIp ]]
               then
                  echo "****************close $shardIp $node****************"
-                 $mongodb_home/bin/mongod -f $clusterPath/conf/$node.conf --shutdown
+                 $mongodb_home/bin/mongod -f $clusterDataPath/conf/$node.conf --shutdown
               else
                  echo "****************close $shardIp $node****************"
-                 ssh $user@$shardIp "$mongodb_home/bin/mongod -f $clusterPath/conf/$node.conf --shutdown"
+                 ssh $user@$shardIp "$mongodb_home/bin/mongod -f $clusterDataPath/conf/$node.conf --shutdown"
               fi
            done
        fi

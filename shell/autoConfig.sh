@@ -4,13 +4,16 @@
 configPath=config.properties
 #从config.properties文件读取数据出来
 template=`awk -F= -v k=template '{ if ( $1 == k ) print $2; }' $configPath`
-clusterPath=`awk -F= -v k=clusterPath '{ if ( $1 == k ) print $2; }' $configPath`
+clusterDataPath=`awk -F= -v k=clusterDataPath '{ if ( $1 == k ) print $2; }' $configPath`
+clusterLogPath=`awk -F= -v k=clusterLogPath '{ if ( $1 == k ) print $2; }' $configPath`
 mongodb_home=`awk -F= -v k=mongodbHome '{ if ( $1 == k ) print $2; }' $configPath`
 
 function createConfig()
 {
    ips=`awk -F= -v k=ips '{ if ( $1 == k ) print $2; }' $configPath`
-   localIp=`/sbin/ifconfig -a|grep inet|grep -v 127.0.0.1|grep -v inet6 | awk '{print $2}' | tr -d "addr:"`
+   hostname=`hostname`
+   localIp=`cat /etc/hosts | grep $hostname | awk -F " " '{print $1}'`
+   #localIp=`/sbin/ifconfig -a|grep inet|grep -v 127.0.0.1|grep -v inet6 | awk '{print $2}' | tr -d "addr:"`
  
    #配置mongodb_home
    #echo "配置mongodb_home"
@@ -77,33 +80,36 @@ function getConfigsIpsPort()
 function createConfFolders()
 {
  
-  if [[ -d $clusterPath/conf ]]
+  if [[ -d $clusterDataPath/conf ]]
   then 
-     rm -rf $clusterPath/conf
+     rm -rf $clusterDataPath/conf
   fi
   
   #创建配置文件夹
-  mkdir -p $clusterPath/conf  
+  mkdir -p $clusterDataPath/conf  
 }
 
 function createMongosFoldersConf()
 {
  #创建mongos路由服务器的日志文件夹log、进程文件夹pid
-  mkdir -p $clusterPath/mongos/log
-  mkdir -p $clusterPath/mongos/pid  
+  mkdir -p $clusterLogPath/mongos/log
+  mkdir -p $clusterDataPath/mongos/pid  
 
   #设置路由服务器
-  cat >> $clusterPath/conf/mongos.conf << EOF
-logpath=$clusterPath/mongos/log/mongos.log
-pidfilepath=$clusterPath/mongos/pid/mongos.pid
-logappend=true
-bind_ip=$localIp
-port=$1
-fork=true
-#监听的配置服务器，只能有1个或3个  configs为配置服务器的副本集名字
-configdb=configs/$2
-#设置最大连接数
-maxConns=20000
+  cat >> $clusterDataPath/conf/mongos.conf << EOF
+systemLog:
+  destination: file
+  path: $clusterLogPath/mongos/log/mongos.log
+  logAppend: true
+processManagement:
+  fork: true
+  pidFilePath: $clusterDataPath/mongos/pid/mongos.pid
+net:
+  bindIp: $localIp
+  port: $1
+  maxIncomingConnections: 20000
+sharding:
+  configDB: configs/$2
 EOF
 
 }
@@ -111,56 +117,90 @@ EOF
 function createConfigFoldersConf()
 {
   #创建config配置服务器的数据文件夹data、日志文件夹log、进程文件夹pid
-  mkdir -p $clusterPath/config/data
-  mkdir -p $clusterPath/config/log
-  mkdir -p $clusterPath/config/pid
+  mkdir -p $clusterDataPath/config/data
+  mkdir -p $clusterLogPath/config/journal
+  mkdir -p $clusterLogPath/config/log
+  mkdir -p $clusterDataPath/config/pid
+
+  #把数据目录的journal日志映射到日志目录里面
+  ln -s $clusterLogPath/config/journal $clusterDataPath/config/data/journal
  
-   #设置配置服务器副本集
-  cat >> $clusterPath/conf/config.conf << EOF
-dbpath=$clusterPath/config/data
-logpath=$clusterPath/config/log/config.log
-pidfilepath=$clusterPath/config/pid/config.pid
-directoryperdb=true
-logappend=true
-bind_ip=$localIp
-port=$1
-oplogSize=10000
-fork=true
-noprealloc=true
-#副本集名称
-replSet=configs
-#declare this is a shard db of a cluster
-configsvr=true
-#设置最大连接数
-maxConns=20000
+  #设置配置服务器副本集
+  cat >> $clusterDataPath/conf/config.conf << EOF
+systemLog:
+  destination: file
+  path: $clusterLogPath/config/log/config.log
+  logAppend: true 
+processManagement:
+  fork: true
+  pidFilePath: $clusterDataPath/config/pid/config.pid
+net:
+  bindIp: $localIp
+  port: $1
+  maxIncomingConnections: 20000
+storage:
+  dbPath: $clusterDataPath/config/data
+  journal:
+    enabled: true
+    commitIntervalMs: 500
+  directoryPerDB: true
+  syncPeriodSecs: 300
+  engine: wiredTiger
+replication:
+  oplogSizeMB: 10000
+  replSetName: configs
+sharding:
+  clusterRole: configsvr
 EOF
 }
 
 function createShardFoldersConf()
 {
   #创建shard1分片服务器的数据文件夹data、日志文件夹log、进程文件夹pid
-  mkdir -p $clusterPath/$1/data
-  mkdir -p $clusterPath/$1/log
-  mkdir -p $clusterPath/$1/pid
+  mkdir -p $clusterDataPath/$1/data
+  mkdir -p $clusterLogPath/$1/journal
+  mkdir -p $clusterLogPath/$1/log
+  mkdir -p $clusterDataPath/$1/pid
+
+  #把数据目录的journal日志映射到日志目录里面
+  ln -s $clusterLogPath/$1/journal $clusterDataPath/$1/data/journal
 
   #设置第一个分片副本集
-  cat >> $clusterPath/conf/$1.conf << EOF
-dbpath=$clusterPath/$1/data
-logpath=$clusterPath/$1/log/$1.log
-pidfilepath=$clusterPath/$1/pid/$1.pid
-directoryperdb=true
-logappend=true
-bind_ip=$localIp
-port=$2
-oplogSize=10000
-fork=true
-noprealloc=true
-#副本集名称
-replSet=$1
-#declare this is a shard db of a cluster
-shardsvr=true
-#设置最大连接数
-maxConns=20000
+  cat >> $clusterDataPath/conf/$1.conf << EOF
+systemLog:
+  destination: file
+  path: $clusterLogPath/$1/log/$1.log
+  logAppend: true
+processManagement:
+  fork: true
+  pidFilePath: $clusterDataPath/$1/pid/$1.pid
+net:
+  bindIp: $localIp
+  port: $2
+  maxIncomingConnections: 20000
+storage:
+  dbPath: $clusterDataPath/$1/data
+  journal: 
+    enabled: true
+    commitIntervalMs: 500
+  directoryPerDB: true
+  syncPeriodSecs: 300
+  engine: wiredTiger
+  wiredTiger:
+    engineConfig:
+      cacheSizeGB: 103
+      statisticsLogDelaySecs: 0
+      journalCompressor: snappy
+      directoryForIndexes: false
+    collectionConfig:
+      blockCompressor: snappy
+    indexConfig:
+      prefixCompression: true
+replication:
+  oplogSizeMB: 10000
+  replSetName: $1
+sharding:
+  clusterRole: shardsvr
 EOF
 }
 
@@ -193,14 +233,14 @@ then
    if [[ $logRotateCronTaskNum = "" ]]
    then
        #没有则追加
-       echo "0 0 * * * root /opt/app/mongodb/shell/autoLogRotate.sh /opt/app/mongodb/shell > /dev/null 2>&1 &" >> $cronfile
+       echo "0 0 * * * root $mongodb_home/shell/autoLogRotate.sh $mongodb_home/shell > /dev/null 2>&1 &" >> $cronfile
    fi
 
    checkLiveCronTaskNum=`sed -n -e "/\*\/10 \* \* \* \* root $shellPath\/autoCheckLive.sh $shellPath/=" $cronfile`
    if [[ $checkLiveCronTaskNum = "" ]]
    then
        #没有则追加
-       echo "*/10 * * * * root /opt/app/mongodb/shell/autoCheckLive.sh /opt/app/mongodb/shell > /dev/null 2>&1 &" >> $cronfile
+       echo "*/10 * * * * root $mongodb_home/shell/autoCheckLive.sh $mongodb_home/shell > /dev/null 2>&1 &" >> $cronfile
    fi   
 fi
 

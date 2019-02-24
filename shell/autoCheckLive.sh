@@ -3,13 +3,16 @@
 shellPath=$1
 configPath=$shellPath/config.properties
 #从config.properties文件读取数据出来
-clusterPath=`awk -F= -v k=clusterPath '{ if ( $1 == k ) print $2; }' $configPath`
+clusterDataPath=`awk -F= -v k=clusterDataPath '{ if ( $1 == k ) print $2; }' $configPath`
 template=`awk -F= -v k=template '{ if ( $1 == k ) print $2; }' $configPath`
 templatePath=$shellPath/template/$template.conf
 
 ips=`awk -F= -v k=ips '{ if ( $1 == k ) print $2; }' $configPath`
 eval $(echo $ips | awk '{split($0, arr, ","); for(i in arr) print "ipArray["i"]="arr[i]}')
-localIp=`/sbin/ifconfig -a|grep inet|grep -v 127.0.0.1|grep -v inet6 | awk '{print $2}' | tr -d "addr:"`
+
+hostname=`hostname`
+localIp=`cat /etc/hosts | grep $hostname | awk -F " " '{print $1}'`
+#localIp=`/sbin/ifconfig -a|grep inet|grep -v 127.0.0.1|grep -v inet6 | awk '{print $2}' | tr -d "addr:"`
 
 suffix=""
 #判断linux系统cpu是否为numa架构
@@ -30,8 +33,7 @@ do
        eval $(echo $mongodbNodes | awk '{split($0, mongodbArr, ","); for(y in mongodbArr) print "mongodbArray["y"]="mongodbArr[y]}')
        for n in ${mongodbArray[*]}
        do
-         pid=`cat $clusterPath/$n/pid/$n.pid`
-         logdir=$clusterPath/$n/log
+         pid=`cat $clusterDataPath/$n/pid/$n.pid`
          #判断是否存活
          count=`ps -ef | grep $pid | grep -v grep | wc -l`
          #程序挂掉啦，启动

@@ -38,8 +38,8 @@ sysctl -w net.ipv4.tcp_rmem='1024 4096 16777216'
 sysctl -w net.ipv4.tcp_wmem='1024 4096 16777216'
 
 #修改系统内核参数：
-echo "never" > /sys/kernel/mm/transparent_hugepage/enabled
-echo "never" >  /sys/kernel/mm/transparent_hugepage/defrag
+#echo "never" > /sys/kernel/mm/transparent_hugepage/enabled
+#echo "never" >  /sys/kernel/mm/transparent_hugepage/defrag
 
 #TCP 连接追踪设置:
 sysctl -w net.nf_conntrack_max=1000000

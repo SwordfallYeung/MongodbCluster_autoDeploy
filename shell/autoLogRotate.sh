@@ -4,13 +4,16 @@
 shellPath=$1
 configPath=$shellPath/config.properties
 #从config.properties文件读取数据出来
-clusterPath=`awk -F= -v k=clusterPath '{ if ( $1 == k ) print $2; }' $configPath`
+clusterDataPath=`awk -F= -v k=clusterDataPath '{ if ( $1 == k ) print $2; }' $configPath`
+clusterLogPath=`awk -F= -v k=clusterLogPath '{ if ( $1 == k ) print $2; }' $configPath`
 template=`awk -F= -v k=template '{ if ( $1 == k ) print $2; }' $configPath`
 templatePath=$shellPath/template/$template.conf
 
 ips=`awk -F= -v k=ips '{ if ( $1 == k ) print $2; }' $configPath`
 eval $(echo $ips | awk '{split($0, arr, ","); for(i in arr) print "ipArray["i"]="arr[i]}')
-localIp=`/sbin/ifconfig -a|grep inet|grep -v 127.0.0.1|grep -v inet6 | awk '{print $2}' | tr -d "addr:"`
+hostname=`hostname`
+localIp=`cat /etc/hosts | grep $hostname | awk -F " " '{print $1}'`
+#localIp=`/sbin/ifconfig -a|grep inet|grep -v 127.0.0.1|grep -v inet6 | awk '{print $2}' | tr -d "addr:"`
 
 #代表删除7天前的备份，即只保留最近7天的备份
 days=7
@@ -24,8 +27,8 @@ do
        eval $(echo $mongodbNodes | awk '{split($0, mongodbArr, ","); for(i in mongodbArr) print "mongodbArray["i"]="mongodbArr[i]}')
        for((n=1; n<=${#mongodbArray[@]}; n++))
        do
-         pid=`cat $clusterPath/${mongodbArray[n]}/pid/${mongodbArray[n]}.pid`
-         logdir=$clusterPath/${mongodbArray[n]}/log
+         pid=`cat $clusterDataPath/${mongodbArray[n]}/pid/${mongodbArray[n]}.pid`
+         logdir=$clusterLogPath/${mongodbArray[n]}/log
          #切割日志
          /bin/kill -SIGUSR1 $pid
          find $logdir/ -mtime +$days -delete
